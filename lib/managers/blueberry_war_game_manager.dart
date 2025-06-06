@@ -1,0 +1,217 @@
+import 'dart:async';
+import 'dart:math';
+
+import 'package:logging/logging.dart';
+import 'package:twitch_blueberry_war/models/agent.dart';
+import 'package:twitch_blueberry_war/models/letter_agent.dart';
+import 'package:twitch_blueberry_war/models/player_agent.dart';
+import 'package:twitch_blueberry_war/models/serializable_treasure_hunt_game_state.dart';
+import 'package:twitch_blueberry_war/to_remove/any_dumb_stuff.dart';
+import 'package:twitch_blueberry_war/to_remove/generic_listener.dart';
+import 'package:vector_math/vector_math.dart';
+
+final _logger = Logger('BlueberryWarGameManager');
+final _random = Random();
+
+final _dictionary = DictionaryManager.wordsWithAtLeast(6).toList();
+
+///
+/// Easy accessors translating index into row/col pair or row/col pair into
+/// index
+
+class BlueberryWarGameManager implements MiniGameManager {
+  ///
+  /// Duration of each game tick (16ms for 60 FPS)
+  final dt = const Duration(milliseconds: 16);
+  Vector2 fieldSize = Vector2(1920, 1080);
+
+  ///
+  /// Whether the game manager is initialized
+  bool _isInitialized = false;
+  bool get isInitialized => _isInitialized;
+
+  ///
+  /// Time remaining for the game
+  Duration _timeRemaining = const Duration(seconds: 60);
+  Duration get timeRemaining => _timeRemaining;
+
+  ///
+  /// Current problem for the game
+  SerializableLetterProblem? _problem;
+  SerializableLetterProblem get problem => _problem!;
+
+  ///
+  /// List of agents in the game (players and letters)
+  final allAgents = <Agent>[];
+  List<LetterAgent> get letters =>
+      allAgents.whereType<LetterAgent>().toList(growable: false);
+  List<PlayerAgent> get players =>
+      allAgents.whereType<PlayerAgent>().toList(growable: false);
+
+  ///
+  /// Teleportation duration
+  final teleportationDuration = const Duration(milliseconds: 1000);
+
+  ///
+  /// Velocity threshold for teleportation
+  final double velocityThreshold = 2.0;
+
+  // Listeners
+  final onGameIsReady = GenericListener<Function>();
+  final onClockTicked = GenericListener<Function(Duration timeRemaining)>();
+
+  ///
+  /// Constructor
+  BlueberryWarGameManager() {
+    initialize();
+  }
+
+  Vector2 _generateRandomStartingPlayerPosition() {
+    return Vector2(
+      _random.nextDouble() * fieldSize.x * 1 / 10.0 + fieldSize.x / 10,
+      _random.nextDouble() * fieldSize.y * 6 / 8.0 + fieldSize.y / 8,
+    );
+  }
+
+  ///
+  /// Initialize the game manager
+  Future<void> initialize() async {
+    _logger.info('BlueberryWarGameManager initializing');
+    _generateProblem();
+
+    allAgents.clear();
+
+    // Populate letters with random agents
+    for (int i = 0; i < problem.letters.length; i++) {
+      allAgents.add(
+        LetterAgent(
+          id: i,
+          problemIndex: i,
+          letter: problem.letters[i],
+          position: Vector2(fieldSize.x * 2 / 3, fieldSize.y * 2 / 5),
+          velocity: Vector2(
+            _random.nextDouble() * 1500 - 750,
+            _random.nextDouble() * 1500 - 750,
+          ),
+          radius: Vector2(40.0, 50.0),
+          mass: 1.0,
+        ),
+      );
+    }
+
+    // Populate players with random agents
+    for (int i = 0; i < 4; i++) {
+      allAgents.add(
+        PlayerAgent(
+          id: i,
+          position: _generateRandomStartingPlayerPosition(),
+          velocity: Vector2(0, 0),
+          radius: Vector2(15.0, 15.0),
+          mass: 3.0,
+        ),
+      );
+    }
+
+    Timer.periodic(dt, (timer) => _gameLoop());
+
+    // Notify listeners that the game is ready
+    _logger.info('BlueberryWarGameManager initialized');
+    _isInitialized = true;
+    onGameIsReady.notifyListeners((callback) => callback());
+  }
+
+  ///
+  /// Get a random word from the list (capitalized)
+  void _generateProblem() {
+    final word = _dictionary[_random.nextInt(_dictionary.length)];
+
+    // One letter will not be on the grid. For internal reasons of LetterDisplayer, we must flag it as "revealed"
+    final mysteryLetterIndex = _random.nextInt(word.length);
+
+    _problem = SerializableLetterProblem(
+      letters: word.split(''),
+      scrambleIndices: List.generate(word.length, (index) => index),
+      uselessLetterStatuses: List.generate(
+        word.length,
+        (i) =>
+            i == mysteryLetterIndex
+                ? LetterStatus.revealed
+                : LetterStatus.normal,
+      ),
+      hiddenLetterStatuses: List.generate(
+        word.length,
+        (_) => LetterStatus.hidden,
+      ),
+    );
+  }
+
+  SerializableBlueberryWarGameState serialize() {
+    return SerializableBlueberryWarGameState();
+  }
+
+  ///
+  /// The game loop
+  void _gameLoop() {
+    if (!_isInitialized) {
+      _logger.warning('Game loop called before initialization');
+      return;
+    }
+    _updateAgents();
+    _tickClock();
+  }
+
+  void _updateAgents() {
+    for (int i = 0; i < allAgents.length; i++) {
+      // Move all agents
+      final agent = allAgents[i];
+      final isPlayer = agent is PlayerAgent;
+      agent.update(
+        dt: dt,
+        horizontalBounds:
+            isPlayer
+                ? Vector2(0, fieldSize.x)
+                : Vector2(fieldSize.x / 5, fieldSize.x),
+        verticalBounds:
+            isPlayer ? Vector2(0, fieldSize.y) : Vector2(0, fieldSize.y),
+      );
+
+      // Check for collisions with other agents.
+      // Do not redo collisions with agents that have already been checked.
+      for (final other in allAgents.sublist(i + 1)) {
+        if (agent.isCollidingWith(other)) {
+          agent.performCollisionWith(other);
+          if (agent is PlayerAgent && other is LetterAgent) other.hit();
+          if (other is PlayerAgent && agent is LetterAgent) agent.hit();
+        }
+      }
+
+      // Check for teleportation
+      if (isPlayer) {
+        // Teleport back to starting if the player is out of starting block and does not move anymore
+        if (agent.position.x > fieldSize.x / 5 &&
+            agent.velocity.length < velocityThreshold) {
+          agent.teleport(_generateRandomStartingPlayerPosition());
+        }
+      }
+    }
+
+    // Check if collision destroyed the agent
+    for (int i = allAgents.length - 1; i >= 0; i--) {
+      final agent = allAgents[i];
+      if (agent is LetterAgent && agent.isDestroyed) {
+        allAgents.removeAt(i);
+        problem.hiddenLetterStatuses[agent.problemIndex] =
+            LetterStatus.revealed;
+      }
+    }
+  }
+
+  ///
+  /// Tick the clock by one second
+  void _tickClock() {
+    _timeRemaining -= dt;
+    if (_timeRemaining.isNegative) _timeRemaining = Duration.zero;
+
+    onClockTicked.notifyListeners((callback) => callback(_timeRemaining));
+  }
+}

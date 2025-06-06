@@ -1,0 +1,88 @@
+import 'package:flutter/material.dart';
+import 'package:twitch_blueberry_war/to_remove/any_dumb_stuff.dart';
+
+class BlueberryWarHeader extends StatefulWidget {
+  const BlueberryWarHeader({super.key});
+
+  @override
+  State<BlueberryWarHeader> createState() => _BlueberryWarHeaderState();
+}
+
+class _BlueberryWarHeaderState extends State<BlueberryWarHeader> {
+  @override
+  void initState() {
+    super.initState();
+
+    final gm = Managers.instance.miniGames.blueberryWar;
+    gm.onClockTicked.listen(_onClockTicked);
+  }
+
+  @override
+  void dispose() {
+    final gm = Managers.instance.miniGames.blueberryWar;
+    gm.onClockTicked.cancel(_onClockTicked);
+
+    super.dispose();
+  }
+
+  void _onClockTicked(Duration timeRemaining) {
+    setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final tm = ThemeManager.instance;
+    final gm = Managers.instance.miniGames.blueberryWar;
+
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ThemeCard(
+              child: Text(
+                'Temps restant: ${Managers.instance.miniGames.blueberryWar.timeRemaining.inSeconds}',
+                style: tm.clientMainTextStyle.copyWith(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 26,
+                  color: tm.textColor,
+                ),
+              ),
+            ),
+            const SizedBox(width: 100),
+            ThemeCard(
+              child: Text(
+                'Essais restants: 1',
+                style: tm.clientMainTextStyle.copyWith(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 26,
+                  color: tm.textColor,
+                ),
+              ),
+            ),
+          ],
+        ),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ...gm.problem.letters.asMap().keys.map(
+              (index) => Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                child: Text(
+                  gm.problem.hiddenLetterStatuses[index] == LetterStatus.hidden
+                      ? '_'
+                      : gm.problem.letters[index],
+
+                  style: TextStyle(fontSize: 30),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
