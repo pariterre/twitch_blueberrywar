@@ -39,9 +39,12 @@ class BlueberryWarGameManager implements MiniGameManager {
   /// Time related stuff for the game
   Timer? _gameTimer;
   DateTime _startTime = DateTime.now();
+  DateTime get startTime => _startTime;
+  DateTime? _finalTime;
+  DateTime? get finalTime => _finalTime;
   final Duration _roundDuration = const Duration(seconds: 30);
   Duration get timeRemaining =>
-      _roundDuration - DateTime.now().difference(_startTime);
+      _roundDuration - (_finalTime ?? DateTime.now()).difference(_startTime);
 
   ///
   /// Current problem for the game
@@ -132,6 +135,7 @@ class BlueberryWarGameManager implements MiniGameManager {
     _logger.info('BlueberryWarGameManager initialized');
     _isInitialized = true;
     _startTime = DateTime.now();
+    _finalTime = null;
     _lastTick = DateTime.now();
     onGameIsReady.notifyListeners((callback) => callback());
   }
@@ -179,7 +183,7 @@ class BlueberryWarGameManager implements MiniGameManager {
     _tickClock();
   }
 
-  Future<void> _manageForGameOver() async {
+  void _manageForGameOver() {
     if (_isGameOver) return;
 
     if (letters.every((letter) => letter.isDestroyed)) {
@@ -203,10 +207,11 @@ class BlueberryWarGameManager implements MiniGameManager {
       agent.coefficientOfFriction = 0.9;
     }
 
+    _finalTime = DateTime.now();
     onGameOver.notifyListeners((callback) => callback(_hasWon!));
   }
 
-  Future<void> _updateAgents() async {
+  void _updateAgents() {
     final dt = DateTime.now().difference(_lastTick);
 
     for (int i = 0; i < allAgents.length; i++) {
@@ -269,8 +274,8 @@ class BlueberryWarGameManager implements MiniGameManager {
 
   ///
   /// Tick the clock by one second
-  Future<void> _tickClock() async {
-    if (!isGameOver) _lastTick = DateTime.now();
+  void _tickClock() {
+    _lastTick = DateTime.now();
     onClockTicked.notifyListeners((callback) => callback());
   }
 }
