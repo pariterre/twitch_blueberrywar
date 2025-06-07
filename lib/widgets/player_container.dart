@@ -115,10 +115,10 @@ class _PlayerContainerState extends State<PlayerContainer> {
     if (!_isDragging) return;
 
     _dragCurrentPosition = details.localPosition;
-    final newVelocity = (_dragStartPosition! - _dragCurrentPosition!) * 4;
+    final newVelocity = (_dragStartPosition! - _dragCurrentPosition!) * 10;
 
     // Ensure the velocity is within a reasonable range
-    final maxVelocity = 1000.0;
+    final maxVelocity = 2000.0;
     double scale = 1.0;
     if (newVelocity.distance > maxVelocity) {
       scale = maxVelocity / newVelocity.distance;
@@ -167,7 +167,10 @@ class _PlayerContainerState extends State<PlayerContainer> {
       height: widget.player.radius.y * 2,
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: Colors.blue.withAlpha(alpha),
+        color:
+            widget.player.isDestroyed
+                ? Colors.red.withAlpha(alpha)
+                : Colors.blue.withAlpha(alpha),
         shape: BoxShape.circle,
         border: Border.all(color: Colors.black.withAlpha(alpha), width: 2.0),
       ),

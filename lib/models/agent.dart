@@ -22,7 +22,7 @@ abstract class Agent {
     required this.velocity,
     required this.radius,
     required this.mass,
-    this.coefficientOfFriction = 0.5,
+    required this.coefficientOfFriction,
   });
 
   void update({

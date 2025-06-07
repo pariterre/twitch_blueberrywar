@@ -32,12 +32,14 @@ class BlueberryWarGameManager implements MiniGameManager {
   bool get isInitialized => _isInitialized;
   bool _isGameOver = false;
   bool get isGameOver => _isGameOver;
+  bool? _hasWon = false;
+  bool get hasWon => _hasWon!;
 
   ///
   /// Time related stuff for the game
   Timer? _gameTimer;
   DateTime _startTime = DateTime.now();
-  final Duration _roundDuration = const Duration(seconds: 5);
+  final Duration _roundDuration = const Duration(seconds: 30);
   Duration get timeRemaining =>
       _roundDuration - DateTime.now().difference(_startTime);
 
@@ -51,6 +53,7 @@ class BlueberryWarGameManager implements MiniGameManager {
   final allAgents = <Agent>[];
   List<LetterAgent> get letters =>
       allAgents.whereType<LetterAgent>().toList(growable: false);
+  final initialPlayerCount = 1;
   List<PlayerAgent> get players =>
       allAgents.whereType<PlayerAgent>().toList(growable: false);
 
@@ -110,7 +113,7 @@ class BlueberryWarGameManager implements MiniGameManager {
     }
 
     // Populate players with random agents
-    for (int i = 0; i < 4; i++) {
+    for (int i = 0; i < initialPlayerCount; i++) {
       allAgents.add(
         PlayerAgent(
           id: i,
@@ -123,9 +126,7 @@ class BlueberryWarGameManager implements MiniGameManager {
     }
 
     _gameTimer?.cancel();
-    _gameTimer = Timer.periodic(_tickDuration, (timer) {
-      _gameLoop();
-    });
+    _gameTimer = Timer.periodic(_tickDuration, (timer) => _gameLoop());
 
     // Notify listeners that the game is ready
     _logger.info('BlueberryWarGameManager initialized');
@@ -173,49 +174,44 @@ class BlueberryWarGameManager implements MiniGameManager {
     }
 
     // Check if the game is over
-    _checkForGameOver();
+    _manageForGameOver();
     _updateAgents();
     _tickClock();
   }
 
-  void _checkForGameOver() {
+  Future<void> _manageForGameOver() async {
     if (_isGameOver) return;
 
-    if (timeRemaining.isNegative) {
-      _logger.info('Game over due to time running out');
-      //_gameTimer?.cancel();
-      _isGameOver = true;
-      onGameOver.notifyListeners((callback) => callback(false));
-      return;
-    }
-
-    // Check if all letters are revealed
     if (letters.every((letter) => letter.isDestroyed)) {
       _logger.info('All letters revealed, you win!');
-      //_gameTimer?.cancel();
       _isGameOver = true;
-      onGameOver.notifyListeners((callback) => callback(true));
+      _hasWon = true;
+    } else if (timeRemaining.isNegative) {
+      _logger.info('Game over due to time running out');
+      _isGameOver = true;
+      _hasWon = false;
+    } else if (players.every((player) => player.isDestroyed)) {
+      _logger.info('All players destroyed, you lose!');
+      _isGameOver = true;
+      _hasWon = false;
     }
 
-    // Check if all the players are destroyed
-    if (players.every((player) => player.isDestroyed)) {
-      _logger.info('All players destroyed, you lose!');
-      //_gameTimer?.cancel();
-      _isGameOver = true;
-      onGameOver.notifyListeners((callback) => callback(false));
+    if (!_isGameOver) return;
+
+    // Make all the agents quickly slowing down
+    for (final agent in allAgents) {
+      agent.coefficientOfFriction = 0.9;
     }
+
+    onGameOver.notifyListeners((callback) => callback(_hasWon!));
   }
 
-  void _updateAgents() {
+  Future<void> _updateAgents() async {
     final dt = DateTime.now().difference(_lastTick);
 
     for (int i = 0; i < allAgents.length; i++) {
       // Move all agents
       final agent = allAgents[i];
-      if (isGameOver) {
-        // If the game is over, keep the agents moving but do not check for collisions
-        agent.coefficientOfFriction = 0.9;
-      }
 
       final isPlayer = agent is PlayerAgent;
       agent.update(
@@ -273,8 +269,8 @@ class BlueberryWarGameManager implements MiniGameManager {
 
   ///
   /// Tick the clock by one second
-  void _tickClock() {
-    _lastTick = DateTime.now();
+  Future<void> _tickClock() async {
+    if (!isGameOver) _lastTick = DateTime.now();
     onClockTicked.notifyListeners((callback) => callback());
   }
 }

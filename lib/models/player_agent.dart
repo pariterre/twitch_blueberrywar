@@ -18,5 +18,6 @@ class PlayerAgent extends Agent {
     required super.velocity,
     required super.radius,
     required super.mass,
+    super.coefficientOfFriction = 0.8,
   });
 }
