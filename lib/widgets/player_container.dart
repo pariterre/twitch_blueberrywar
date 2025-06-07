@@ -78,15 +78,18 @@ class _PlayerContainerState extends State<PlayerContainer> {
     }
   }
 
-  void _clockTicked(Duration dt) {
+  void _clockTicked() {
     _performFading();
     setState(() {});
   }
 
   ///
   /// Only allow dragging if not teleporting and not moving
-  bool get _canBeDragged =>
-      !(_isFading || widget.player.velocity.length > _gm.velocityThreshold);
+  bool get _canBeDragged => !_cannotBeDragged;
+  bool get _cannotBeDragged =>
+      _isFading ||
+      widget.player.velocity.length > _gm.velocityThreshold ||
+      _gm.isGameOver;
 
   void _onDragStart(DragStartDetails details) {
     if (_isDragging) return;

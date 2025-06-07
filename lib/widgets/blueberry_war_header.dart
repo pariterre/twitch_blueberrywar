@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:twitch_blueberry_war/to_remove/any_dumb_stuff.dart';
 
@@ -25,7 +27,7 @@ class _BlueberryWarHeaderState extends State<BlueberryWarHeader> {
     super.dispose();
   }
 
-  void _onClockTicked(Duration timeRemaining) {
+  void _onClockTicked() {
     setState(() {});
   }
 
@@ -44,7 +46,7 @@ class _BlueberryWarHeaderState extends State<BlueberryWarHeader> {
           children: [
             ThemeCard(
               child: Text(
-                'Temps restant: ${Managers.instance.miniGames.blueberryWar.timeRemaining.inSeconds}',
+                'Temps restant: ${max(Managers.instance.miniGames.blueberryWar.timeRemaining.inSeconds, 0)}',
                 style: tm.clientMainTextStyle.copyWith(
                   fontWeight: FontWeight.bold,
                   fontSize: 26,

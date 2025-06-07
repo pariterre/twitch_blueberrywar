@@ -28,7 +28,7 @@ class _LetterContainerState extends State<LetterContainer> {
     super.dispose();
   }
 
-  void _clockTicked(Duration duration) => setState(() {});
+  void _clockTicked() => setState(() {});
 
   @override
   Widget build(BuildContext context) {

@@ -9,7 +9,7 @@ abstract class Agent {
   Vector2 velocity;
   final Vector2 radius;
   final double mass;
-  final double coefficientOfFriction;
+  double coefficientOfFriction;
   AgentShape get shape;
 
   final onTeleport = GenericListener<Function(Vector2 from, Vector2 to)>();

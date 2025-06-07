@@ -31,7 +31,7 @@ class _BlueberryWarGameScreenState extends State<BlueberryWarGameScreen> {
     super.dispose();
   }
 
-  void _clockTicked(Duration duration) => setState(() {});
+  void _clockTicked() => setState(() {});
 
   @override
   Widget build(BuildContext context) {

@@ -22,18 +22,24 @@ final _dictionary = DictionaryManager.wordsWithAtLeast(6).toList();
 class BlueberryWarGameManager implements MiniGameManager {
   ///
   /// Duration of each game tick (16ms for 60 FPS)
-  final dt = const Duration(milliseconds: 16);
+  final Duration _tickDuration = const Duration(milliseconds: 16);
+  DateTime _lastTick = DateTime.now();
   Vector2 fieldSize = Vector2(1920, 1080);
 
   ///
   /// Whether the game manager is initialized
   bool _isInitialized = false;
   bool get isInitialized => _isInitialized;
+  bool _isGameOver = false;
+  bool get isGameOver => _isGameOver;
 
   ///
-  /// Time remaining for the game
-  Duration _timeRemaining = const Duration(seconds: 60);
-  Duration get timeRemaining => _timeRemaining;
+  /// Time related stuff for the game
+  Timer? _gameTimer;
+  DateTime _startTime = DateTime.now();
+  final Duration _roundDuration = const Duration(seconds: 5);
+  Duration get timeRemaining =>
+      _roundDuration - DateTime.now().difference(_startTime);
 
   ///
   /// Current problem for the game
@@ -54,11 +60,12 @@ class BlueberryWarGameManager implements MiniGameManager {
 
   ///
   /// Velocity threshold for teleportation
-  final double velocityThreshold = 2.0;
+  final double velocityThreshold = 20.0;
 
   // Listeners
-  final onGameIsReady = GenericListener<Function>();
-  final onClockTicked = GenericListener<Function(Duration timeRemaining)>();
+  final onGameIsReady = GenericListener<Function()>();
+  final onClockTicked = GenericListener<Function()>();
+  final onGameOver = GenericListener<Function(bool)>();
 
   ///
   /// Constructor
@@ -77,6 +84,7 @@ class BlueberryWarGameManager implements MiniGameManager {
   /// Initialize the game manager
   Future<void> initialize() async {
     _logger.info('BlueberryWarGameManager initializing');
+    _isGameOver = false;
     _generateProblem();
 
     allAgents.clear();
@@ -107,18 +115,23 @@ class BlueberryWarGameManager implements MiniGameManager {
         PlayerAgent(
           id: i,
           position: _generateRandomStartingPlayerPosition(),
-          velocity: Vector2(0, 0),
+          velocity: Vector2.zero(),
           radius: Vector2(15.0, 15.0),
           mass: 3.0,
         ),
       );
     }
 
-    Timer.periodic(dt, (timer) => _gameLoop());
+    _gameTimer?.cancel();
+    _gameTimer = Timer.periodic(_tickDuration, (timer) {
+      _gameLoop();
+    });
 
     // Notify listeners that the game is ready
     _logger.info('BlueberryWarGameManager initialized');
     _isInitialized = true;
+    _startTime = DateTime.now();
+    _lastTick = DateTime.now();
     onGameIsReady.notifyListeners((callback) => callback());
   }
 
@@ -158,14 +171,52 @@ class BlueberryWarGameManager implements MiniGameManager {
       _logger.warning('Game loop called before initialization');
       return;
     }
+
+    // Check if the game is over
+    _checkForGameOver();
     _updateAgents();
     _tickClock();
   }
 
+  void _checkForGameOver() {
+    if (_isGameOver) return;
+
+    if (timeRemaining.isNegative) {
+      _logger.info('Game over due to time running out');
+      //_gameTimer?.cancel();
+      _isGameOver = true;
+      onGameOver.notifyListeners((callback) => callback(false));
+      return;
+    }
+
+    // Check if all letters are revealed
+    if (letters.every((letter) => letter.isDestroyed)) {
+      _logger.info('All letters revealed, you win!');
+      //_gameTimer?.cancel();
+      _isGameOver = true;
+      onGameOver.notifyListeners((callback) => callback(true));
+    }
+
+    // Check if all the players are destroyed
+    if (players.every((player) => player.isDestroyed)) {
+      _logger.info('All players destroyed, you lose!');
+      //_gameTimer?.cancel();
+      _isGameOver = true;
+      onGameOver.notifyListeners((callback) => callback(false));
+    }
+  }
+
   void _updateAgents() {
+    final dt = DateTime.now().difference(_lastTick);
+
     for (int i = 0; i < allAgents.length; i++) {
       // Move all agents
       final agent = allAgents[i];
+      if (isGameOver) {
+        // If the game is over, keep the agents moving but do not check for collisions
+        agent.coefficientOfFriction = 0.9;
+      }
+
       final isPlayer = agent is PlayerAgent;
       agent.update(
         dt: dt,
@@ -223,9 +274,7 @@ class BlueberryWarGameManager implements MiniGameManager {
   ///
   /// Tick the clock by one second
   void _tickClock() {
-    _timeRemaining -= dt;
-    if (_timeRemaining.isNegative) _timeRemaining = Duration.zero;
-
-    onClockTicked.notifyListeners((callback) => callback(_timeRemaining));
+    _lastTick = DateTime.now();
+    onClockTicked.notifyListeners((callback) => callback());
   }
 }

@@ -40,5 +40,8 @@ class LetterAgent extends Agent {
     required super.velocity,
     required super.radius,
     required super.mass,
-  }) : super(coefficientOfFriction: isBoss ? -0.2 : 0.5);
+    double? coefficientOfFriction,
+  }) : super(
+         coefficientOfFriction: coefficientOfFriction ?? (isBoss ? -0.2 : 0.5),
+       );
 }

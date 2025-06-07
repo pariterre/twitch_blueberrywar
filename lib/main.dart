@@ -1,8 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:logging/logging.dart';
 import 'package:twitch_blueberry_war/screens/blueberry_war_game_screen.dart';
 import 'package:twitch_blueberry_war/to_remove/any_dumb_stuff.dart';
 
+final _logger = Logger('Main');
+
 void main() {
+  // Set up logging
+  Logger.root.level = Level.WARNING; // Set the logging level
+  Logger.root.onRecord.listen((record) {
+    debugPrint('${record.level.name}: ${record.time}: ${record.message}');
+  });
+  _logger.info('Starting Twitch Blueberry War App');
+
   Managers.initialize();
   runApp(const MyApp());
 }
