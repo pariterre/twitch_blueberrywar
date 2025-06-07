@@ -9,9 +9,12 @@ abstract class Agent {
   Vector2 velocity;
   final Vector2 radius;
   final double mass;
+  final double coefficientOfFriction;
   AgentShape get shape;
 
   final onTeleport = GenericListener<Function(Vector2 from, Vector2 to)>();
+  final onDestroyed = GenericListener<Function>();
+  bool get isDestroyed;
 
   Agent({
     required this.id,
@@ -19,6 +22,7 @@ abstract class Agent {
     required this.velocity,
     required this.radius,
     required this.mass,
+    this.coefficientOfFriction = 0.5,
   });
 
   void update({
@@ -26,11 +30,13 @@ abstract class Agent {
     required Vector2 horizontalBounds,
     required Vector2 verticalBounds,
   }) {
+    if (isDestroyed) return;
+
     // Update position
     position += velocity * (dt.inMilliseconds / 1000.0);
 
     // Add some friction to the velocity
-    velocity *= 0.99;
+    velocity *= (1 - coefficientOfFriction * dt.inMilliseconds / 1000.0);
 
     // Check bounds and bounce if necessary
     if (isOutOfHorizontalBounds(horizontalBounds)) {
@@ -50,6 +56,8 @@ abstract class Agent {
   }
 
   void performCollisionWith(Agent other) {
+    if (isDestroyed || other.isDestroyed) return;
+
     // Make sure they don't overlap
     final delta = position - other.position;
     final normal = delta.normalized();
@@ -69,7 +77,7 @@ abstract class Agent {
     other.velocity += impulse * mass;
   }
 
-  void teleport(Vector2 to) {
+  void teleport({required Vector2 to}) {
     position = to;
     velocity = Vector2.zero();
     onTeleport.notifyListeners((callback) => callback(position, to));
@@ -83,6 +91,8 @@ abstract class Agent {
   ///
   /// Check if this agent is colliding with another agent
   bool isCollidingWith(Agent other) {
+    if (isDestroyed || other.isDestroyed) return false;
+
     if (shape == AgentShape.circle && other.shape == AgentShape.circle) {
       final distance = (position - other.position).length;
       return distance < (radius.x + other.radius.x);

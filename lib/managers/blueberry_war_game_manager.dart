@@ -82,10 +82,12 @@ class BlueberryWarGameManager implements MiniGameManager {
     allAgents.clear();
 
     // Populate letters with random agents
+    final bossIndex = _random.nextInt(problem.letters.length);
     for (int i = 0; i < problem.letters.length; i++) {
       allAgents.add(
         LetterAgent(
           id: i,
+          isBoss: i == bossIndex,
           problemIndex: i,
           letter: problem.letters[i],
           position: Vector2(fieldSize.x * 2 / 3, fieldSize.y * 2 / 5),
@@ -180,8 +182,12 @@ class BlueberryWarGameManager implements MiniGameManager {
       for (final other in allAgents.sublist(i + 1)) {
         if (agent.isCollidingWith(other)) {
           agent.performCollisionWith(other);
-          if (agent is PlayerAgent && other is LetterAgent) other.hit();
-          if (other is PlayerAgent && agent is LetterAgent) agent.hit();
+          if (agent is LetterAgent && other is PlayerAgent) {
+            performHitOfPlayerOnLetter(other, agent);
+          }
+          if (agent is PlayerAgent && other is LetterAgent) {
+            performHitOfPlayerOnLetter(agent, other);
+          }
         }
       }
 
@@ -190,19 +196,27 @@ class BlueberryWarGameManager implements MiniGameManager {
         // Teleport back to starting if the player is out of starting block and does not move anymore
         if (agent.position.x > fieldSize.x / 5 &&
             agent.velocity.length < velocityThreshold) {
-          agent.teleport(_generateRandomStartingPlayerPosition());
+          agent.teleport(to: _generateRandomStartingPlayerPosition());
         }
       }
     }
 
-    // Check if collision destroyed the agent
+    // Check if collision revealed the letter
     for (int i = allAgents.length - 1; i >= 0; i--) {
       final agent = allAgents[i];
       if (agent is LetterAgent && agent.isDestroyed) {
-        allAgents.removeAt(i);
         problem.hiddenLetterStatuses[agent.problemIndex] =
             LetterStatus.revealed;
       }
+    }
+  }
+
+  void performHitOfPlayerOnLetter(PlayerAgent player, LetterAgent letter) {
+    if (letter.isBoss) {
+      // Destroy the player
+      player.destroy();
+    } else {
+      letter.hit();
     }
   }
 
