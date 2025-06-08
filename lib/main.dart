@@ -7,7 +7,7 @@ final _logger = Logger('Main');
 
 void main() {
   // Set up logging
-  Logger.root.level = Level.ALL; // Set the logging level
+  Logger.root.level = Level.INFO; // Set the logging level
   Logger.root.onRecord.listen((record) {
     debugPrint('${record.level.name}: ${record.time}: ${record.message}');
   });

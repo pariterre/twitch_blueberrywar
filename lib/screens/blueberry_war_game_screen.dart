@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:twitch_blueberry_war/to_remove/any_dumb_stuff.dart';
+import 'package:twitch_blueberry_war/widgets/blueberry_war_animated_text_overlay.dart';
 import 'package:twitch_blueberry_war/widgets/blueberry_war_header.dart';
 import 'package:twitch_blueberry_war/widgets/blueberry_war_playing_field.dart';
 import 'package:vector_math/vector_math.dart' as vector_math;
@@ -46,7 +47,6 @@ class _BlueberryWarGameScreenState extends State<BlueberryWarGameScreen> {
             child: const BlueberryWarHeader(),
           ),
         ),
-
         Align(
           alignment: Alignment.topLeft,
           child: Column(
@@ -72,6 +72,7 @@ class _BlueberryWarGameScreenState extends State<BlueberryWarGameScreen> {
             ],
           ),
         ),
+        const BluberryWarAnimatedTextOverlay(),
       ],
     );
   }

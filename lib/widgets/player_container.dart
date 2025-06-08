@@ -88,7 +88,7 @@ class _PlayerContainerState extends State<PlayerContainer> {
   bool get _canBeDragged => !_cannotBeDragged;
   bool get _cannotBeDragged =>
       _isFading ||
-      widget.player.velocity.length > _gm.velocityThreshold ||
+      widget.player.velocity.length2 > _gm.velocityThresholdSquared ||
       _gm.isGameOver;
 
   void _onDragStart(DragStartDetails details) {

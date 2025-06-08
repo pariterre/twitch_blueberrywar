@@ -38,13 +38,14 @@ class BlueberryWarGameManager implements MiniGameManager {
   ///
   /// Time related stuff for the game
   Timer? _gameTimer;
-  DateTime _startTime = DateTime.now();
-  DateTime get startTime => _startTime;
+  DateTime? _startTime;
+  DateTime get startTime => _startTime ?? DateTime.now();
   DateTime? _finalTime;
   DateTime? get finalTime => _finalTime;
   final Duration _roundDuration = const Duration(seconds: 30);
   Duration get timeRemaining =>
-      _roundDuration - (_finalTime ?? DateTime.now()).difference(_startTime);
+      _roundDuration -
+      (_finalTime ?? DateTime.now()).difference(_startTime ?? DateTime.now());
 
   ///
   /// Current problem for the game
@@ -56,7 +57,7 @@ class BlueberryWarGameManager implements MiniGameManager {
   final allAgents = <Agent>[];
   List<LetterAgent> get letters =>
       allAgents.whereType<LetterAgent>().toList(growable: false);
-  final initialPlayerCount = 1;
+  final initialPlayerCount = 10;
   List<PlayerAgent> get players =>
       allAgents.whereType<PlayerAgent>().toList(growable: false);
 
@@ -66,18 +67,18 @@ class BlueberryWarGameManager implements MiniGameManager {
 
   ///
   /// Velocity threshold for teleportation
-  final double velocityThreshold = 20.0;
+  final double velocityThresholdSquared = 400.0;
 
   // Listeners
   final onGameIsReady = GenericListener<Function()>();
   final onClockTicked = GenericListener<Function()>();
   final onGameOver = GenericListener<Function(bool)>();
+  final onTrySolution =
+      GenericListener<Function(String sender, String word, bool isSuccess)>();
 
   ///
   /// Constructor
-  BlueberryWarGameManager() {
-    initialize();
-  }
+  BlueberryWarGameManager();
 
   Vector2 _generateRandomStartingPlayerPosition() {
     return Vector2(
@@ -98,10 +99,11 @@ class BlueberryWarGameManager implements MiniGameManager {
     // Populate letters with random agents
     final bossIndex = _random.nextInt(problem.letters.length);
     for (int i = 0; i < problem.letters.length; i++) {
+      final isBoss = i == bossIndex;
       allAgents.add(
         LetterAgent(
           id: i,
-          isBoss: i == bossIndex,
+          isBoss: isBoss,
           problemIndex: i,
           letter: problem.letters[i],
           position: Vector2(fieldSize.x * 2 / 3, fieldSize.y * 2 / 5),
@@ -111,6 +113,7 @@ class BlueberryWarGameManager implements MiniGameManager {
           ),
           radius: Vector2(40.0, 50.0),
           mass: 1.0,
+          coefficientOfFriction: (isBoss ? -0.2 : 0.5),
         ),
       );
     }
@@ -124,6 +127,7 @@ class BlueberryWarGameManager implements MiniGameManager {
           velocity: Vector2.zero(),
           radius: Vector2(15.0, 15.0),
           mass: 3.0,
+          coefficientOfFriction: 0.8,
         ),
       );
     }
@@ -134,8 +138,10 @@ class BlueberryWarGameManager implements MiniGameManager {
     // Notify listeners that the game is ready
     _logger.info('BlueberryWarGameManager initialized');
     _isInitialized = true;
-    _startTime = DateTime.now();
+    _startTime = null;
     _finalTime = null;
+    _isGameOver = false;
+    _hasWon = null;
     _lastTick = DateTime.now();
     onGameIsReady.notifyListeners((callback) => callback());
   }
@@ -145,7 +151,8 @@ class BlueberryWarGameManager implements MiniGameManager {
   void _generateProblem() {
     final word = _dictionary[_random.nextInt(_dictionary.length)];
 
-    // One letter will not be on the grid. For internal reasons of LetterDisplayer, we must flag it as "revealed"
+    // One letter will not be on the grid. For internal reasons of LetterDisplayer,
+    // we must flag it as "revealed"
     final mysteryLetterIndex = _random.nextInt(word.length);
 
     _problem = SerializableLetterProblem(
@@ -178,13 +185,38 @@ class BlueberryWarGameManager implements MiniGameManager {
     }
 
     // Check if the game is over
+    _manageStartOfGame();
     _manageForGameOver();
     _updateAgents();
     _tickClock();
   }
 
+  void _manageStartOfGame() {
+    if (_startTime != null) return;
+
+    for (final agent in allAgents) {
+      if (agent is! PlayerAgent) continue;
+      if (agent.velocity.length2 != 0.0) {
+        _logger.info('Timer started');
+        _startTime = DateTime.now();
+        break;
+      }
+    }
+  }
+
   void _manageForGameOver() {
-    if (_isGameOver) return;
+    if (_isGameOver) {
+      // Stop the timer if all the agents have stopped moving
+      if (allAgents.every(
+        (agent) =>
+            agent.velocity.length2 < velocityThresholdSquared ||
+            agent.isDestroyed,
+      )) {
+        _logger.info('Game over, stopping the timer');
+        _gameTimer?.cancel();
+      }
+      return;
+    }
 
     if (letters.every((letter) => letter.isDestroyed)) {
       _logger.info('All letters revealed, you win!');
@@ -247,7 +279,7 @@ class BlueberryWarGameManager implements MiniGameManager {
       if (isPlayer) {
         // Teleport back to starting if the player is out of starting block and does not move anymore
         if (agent.position.x > fieldSize.x / 5 &&
-            agent.velocity.length < velocityThreshold) {
+            agent.velocity.length2 < velocityThresholdSquared) {
           agent.teleport(to: _generateRandomStartingPlayerPosition());
         }
       }
@@ -275,6 +307,7 @@ class BlueberryWarGameManager implements MiniGameManager {
   ///
   /// Tick the clock by one second
   void _tickClock() {
+    _logger.finer('Game loop ticked at ${DateTime.now()}');
     _lastTick = DateTime.now();
     onClockTicked.notifyListeners((callback) => callback());
   }
